@@ -1,11 +1,15 @@
 ﻿using Chip_8_Emulator.Core;
+using Chip_8_Emulator.Source;
 using OpenToolkit.Graphics.OpenGL4;
 using OpenToolkit.Mathematics;
 using OpenToolkit.Windowing.Common;
+using OpenToolkit.Windowing.Common.Input;
 using OpenToolkit.Windowing.Desktop;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace Chip_8_Emulator
 {
@@ -34,6 +38,8 @@ namespace Chip_8_Emulator
 		private int textureHandle = -1;
 		private int vboHandle = -1;
 		private int vaoHandle = -1;
+
+		private Chip8 chip8 = null;
 
 		public Window(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings) : base(gameWindowSettings, nativeWindowSettings) { }
 
@@ -99,6 +105,20 @@ namespace Chip_8_Emulator
 
 			GL.BindVertexArray(vaoHandle);
 			GL.BufferData(BufferTarget.ArrayBuffer, vertices.Length * sizeof(float), vertices, BufferUsageHint.StreamDraw);
+
+			// Load program
+			byte[] fileBytes = File.ReadAllBytes("Roms/pong.ch8");
+
+			// Create emulator
+			ushort[] instructions = new ushort[]
+			{
+				0xD005, 0xD005, 0xA00A, 0xD005, 0xA00F, 0xD005, 0x1200,
+				//0xA0FF, 0xFF55,
+			};
+
+			chip8 = new Chip8(fileBytes);
+
+			chip8.DumpMemory();
 		}
 
 		protected override void OnUpdateFrame(FrameEventArgs args)
@@ -117,6 +137,26 @@ namespace Chip_8_Emulator
 			SwapBuffers();
 		}
 
+		protected override void OnKeyDown(KeyboardKeyEventArgs e)
+		{
+			base.OnKeyDown(e);
+
+			if (e.Key == Key.S)
+			{
+				int iterations = 1;
+
+				if (LastKeyboardState.IsKeyDown(Key.ControlLeft))
+					iterations = 100;
+
+				for (int i = 0; i < iterations; i++)
+					chip8.Step();
+
+				//chip8.DumpGfx();
+
+				UpdateTextureTarget();
+			}
+		}
+
 		protected override void OnUnload()
 		{
 			base.OnUnload();
@@ -129,6 +169,16 @@ namespace Chip_8_Emulator
 		{
 			string msg = Marshal.PtrToStringAnsi(message, length);
 			Console.WriteLine(msg);
+		}
+
+		private void UpdateTextureTarget()
+		{
+			byte[] pixels = new byte[64 * 32];
+			for (int i = 0; i < 64 * 32; i++)
+			{
+				pixels[i] = chip8.gfx[i];
+			}
+			GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.R8, 64, 32, 0, PixelFormat.Red, PixelType.UnsignedByte, pixels);
 		}
 	}
 }
