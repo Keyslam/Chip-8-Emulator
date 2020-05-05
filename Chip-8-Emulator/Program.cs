@@ -107,16 +107,16 @@ namespace Chip_8_Emulator
 			GL.BufferData(BufferTarget.ArrayBuffer, vertices.Length * sizeof(float), vertices, BufferUsageHint.StreamDraw);
 
 			// Load program
-			byte[] fileBytes = File.ReadAllBytes("Roms/pong.ch8");
+			byte[] fileBytes = File.ReadAllBytes("Roms/life.ch8");
 
 			// Create emulator
 			ushort[] instructions = new ushort[]
 			{
-				0xD005, 0xD005, 0xA00A, 0xD005, 0xA00F, 0xD005, 0x1200,
-				//0xA0FF, 0xFF55,
+				0x00E0, 0xF029, 0xD115, 0x7001, 0x1200
 			};
 
 			chip8 = new Chip8(fileBytes);
+			//chip8 = new Chip8(instructions);
 
 			chip8.DumpMemory();
 		}
@@ -124,6 +124,18 @@ namespace Chip_8_Emulator
 		protected override void OnUpdateFrame(FrameEventArgs args)
 		{
 			base.OnUpdateFrame(args);
+
+			if (LastKeyboardState.IsKeyDown(Key.Space))
+			{
+				int iterations = 10;
+				for (int i = 1; i < iterations; i++) {
+					chip8.UpdateTimers((float)args.Time * 60 / iterations);
+					chip8.Step(this);
+				}
+
+				UpdateTextureTarget();
+			}
+
 		}
 
 		protected override void OnRenderFrame(FrameEventArgs args)
@@ -149,7 +161,7 @@ namespace Chip_8_Emulator
 					iterations = 100;
 
 				for (int i = 0; i < iterations; i++)
-					chip8.Step();
+					chip8.Step(this);
 
 				//chip8.DumpGfx();
 

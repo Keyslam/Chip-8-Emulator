@@ -1,9 +1,32 @@
-﻿using System;
+﻿using OpenToolkit.Windowing.Common.Input;
+using OpenToolkit.Windowing.Desktop;
+using System;
+using System.Collections.Generic;
 
 namespace Chip_8_Emulator.Source
 {
 	public class Chip8
 	{
+		private Dictionary<byte, Key> keyLookup = new Dictionary<byte, Key>()
+		{
+			{ 0x0, Key.X },
+			{ 0x1, Key.Number1 },
+			{ 0x2, Key.Number2 },
+			{ 0x3, Key.Number3 },
+			{ 0x4, Key.Q },
+			{ 0x5, Key.W },
+			{ 0x6, Key.E },
+			{ 0x7, Key.A },
+			{ 0x8, Key.S },
+			{ 0x9, Key.D },
+			{ 0xA, Key.Z },
+			{ 0xB, Key.C },
+			{ 0xC, Key.Number4 },
+			{ 0xD, Key.R },
+			{ 0xE, Key.F },
+			{ 0xF, Key.V },
+		};
+
 		private short opcode = default;
 
 		private byte[] memory = new byte[0x1000];
@@ -21,8 +44,8 @@ namespace Chip_8_Emulator.Source
 
 		public byte[] gfx = new byte[64 * 32];
 
-		private byte delayTimer = default;
-		private byte soundTimer = default;
+		private float delayTimer = default;
+		private float soundTimer = default;
 
 		private byte[] key = new byte[16];
 
@@ -115,7 +138,13 @@ namespace Chip_8_Emulator.Source
 				memory[i + 0x200] = instructions[i];
 		}
 
-		public void Step()
+		public void UpdateTimers(float delta)
+		{
+			delayTimer = Math.Max(0, delayTimer - delta);
+			soundTimer = Math.Max(0, soundTimer - delta);
+		}
+
+		public void Step(GameWindow window)
 		{
 			bool incrementPC = true;
 
@@ -131,7 +160,7 @@ namespace Chip_8_Emulator.Source
 			byte count;
 			short address;
 
-			Console.WriteLine("Opcode: " + opcode.ToString("X4"));
+			//Console.WriteLine("Opcode: " + opcode.ToString("X4"));
 
 			switch (opcode & 0xF000)
 			{
@@ -166,7 +195,7 @@ namespace Chip_8_Emulator.Source
 
 					break;
 				case 0x3000: // (3XNN) Skips the next instruction if VX equals NN. (Usually the next instruction is a jump to skip a code block) 
-					vx = registers[(short)(opcode & 0x0F00) >> 8];
+					vx = registers[(short)((opcode & 0x0F00) >> 8)];
 					nn = (byte)(opcode & 0x00FF);
 
 					if (vx == nn)
@@ -174,7 +203,7 @@ namespace Chip_8_Emulator.Source
 
 					break;
 				case 0x4000: // (4XNN) Skips the next instruction if VX doesn't equal NN. (Usually the next instruction is a jump to skip a code block) 
-					vx = registers[(short)(opcode & 0x0F00) >> 8];
+					vx = registers[(short)((opcode & 0x0F00) >> 8)];
 					nn = (byte)(opcode & 0x00FF);
 
 					if (vx != nn)
@@ -182,8 +211,8 @@ namespace Chip_8_Emulator.Source
 
 					break;
 				case 0x5000: // (5XY0) Skips the next instruction if VX equals VY. (Usually the next instruction is a jump to skip a code block) 
-					vx = registers[(short)(opcode & 0x0F00) >> 8];
-					vy = registers[(short)(opcode & 0x00F0) >> 4];
+					vx = registers[(short)((opcode & 0x0F00) >> 8)];
+					vy = registers[(short)((opcode & 0x00F0) >> 4)];
 
 					if (vx == vy)
 						programCounter += 2;
@@ -191,75 +220,75 @@ namespace Chip_8_Emulator.Source
 					break;
 				case 0x6000: // (6XNN) Sets VX to NN.
 					nn = (byte)(opcode & 0x00FF);
-					registers[(short)(opcode & 0x0F00) >> 8] = nn;
+					registers[(short)((opcode & 0x0F00) >> 8)] = nn;
 
 					break;
 				case 0x7000: // (7XNN) Adds NN to VX. (Carry flag is not changed) 
 					nn = (byte)(opcode & 0x00FF);
-					registers[(short)(opcode & 0x0F00) >> 8] += nn;
+					registers[(short)((opcode & 0x0F00) >> 8)] += nn;
 
 					break;
 				case 0x8000:
 					switch (opcode & 0x000F)
 					{
 						case 0x0000: // (8XY0) Sets VX to the value of VY. 
-							vy = registers[(short)(opcode & 0x00F0) >> 4];
+							vy = registers[(short)((opcode & 0x00F0) >> 4)];
 
-							registers[(short)(opcode & 0x0F00) >> 8] = vy;
+							registers[(short)((opcode & 0x0F00) >> 8)] = vy;
 
 							break;
 						case 0x0001: // (8XY1) Sets VX to VX or VY. (Bitwise OR operation) 
-							vx = registers[(short)(opcode & 0x0F00) >> 8];
-							vy = registers[(short)(opcode & 0x00F0) >> 4];
+							vx = registers[(short)((opcode & 0x0F00) >> 8)];
+							vy = registers[(short)((opcode & 0x00F0) >> 4)];
 
 							registers[(short)(opcode & 0x0F00) >> 8] = (byte)(vx | vy);
 
 							break;
 						case 0x0002: // (8XY2) Sets VX to VX and VY. (Bitwise AND operation) 
-							vx = registers[(short)(opcode & 0x0F00) >> 8];
-							vy = registers[(short)(opcode & 0x00F0) >> 4];
+							vx = registers[(short)((opcode & 0x0F00) >> 8)];
+							vy = registers[(short)((opcode & 0x00F0) >> 4)];
 
-							registers[(short)(opcode & 0x0F00) >> 8] = (byte)(vx & vy);
+							registers[(short)((opcode & 0x0F00) >> 8)] = (byte)(vx & vy);
 
 							break;
 						case 0x0003: // (8XY3) Sets VX to VX xor VY. 
-							vx = registers[(short)(opcode & 0x0F00) >> 8];
-							vy = registers[(short)(opcode & 0x00F0) >> 4];
+							vx = registers[(short)((opcode & 0x0F00) >> 8)];
+							vy = registers[(short)((opcode & 0x00F0) >> 4)];
 
-							registers[(short)(opcode & 0x0F00) >> 8] = (byte)(vx ^ vy);
+							registers[(short)((opcode & 0x0F00) >> 8)] = (byte)(vx ^ vy);
 
 							break;
 						case 0x0004: // (8XY4) Adds VY to VX. VF is set to 1 when there's a carry, and to 0 when there isn't. 
-							vx = registers[opcode & 0x0F00 >> 8];
-							vy = registers[opcode & 0x00F0 >> 4];
+							vx = registers[(opcode & 0x0F00) >> 8];
+							vy = registers[(opcode & 0x00F0) >> 4];
 
 							if (vy > 0xFF - vx)
 								registers[0xF] = 1;
 							else
 								registers[0xF] = 0;
 
-							registers[opcode & 0x0F00 >> 8] += vy;
+							registers[(opcode & 0x0F00) >> 8] += vy;
 
 							break;
 						case 0x0005: // (8XY5) VY is subtracted from VX. VF is set to 0 when there's a borrow, and 1 when there isn't.
-							vx = registers[opcode & 0x0F00 >> 8];
-							vy = registers[opcode & 0x00F0 >> 4];
+							vx = registers[(opcode & 0x0F00) >> 8];
+							vy = registers[(opcode & 0x00F0) >> 4];
 
 							if (vy > vx)
 								registers[0xF] = 1;
 							else
 								registers[0xF] = 0;
 
-							registers[opcode & 0x0F00 >> 8] -= vy;
+							registers[(opcode & 0x0F00) >> 8] -= vy;
 
 							break;
 						case 0x0006: // (8XY6) Stores the least significant bit of VX in VF and then shifts VX to the right by 1.
-							vx = registers[opcode & 0x0F00 >> 8];
+							vx = registers[(opcode & 0x0F00) >> 8];
 							data = (byte)(vx & 0x01);
 
 							registers[0xF] = data;
 
-							registers[opcode & 0x0F00 >> 8] = (byte)(vx >> 1);
+							registers[(opcode & 0x0F00) >> 8] = (byte)(vx >> 1);
 
 							break;
 						case 0x0007: // (8XY7) Sets VX to VY minus VX. VF is set to 0 when there's a borrow, and 1 when there isn't. 
@@ -281,8 +310,8 @@ namespace Chip_8_Emulator.Source
 					}
 					break;
 				case 0x9000: // (9XY0) Skips the next instruction if VX doesn't equal VY. (Usually the next instruction is a jump to skip a code block) 
-					vx = registers[(byte)(opcode & 0x0F00) >> 8];
-					vy = registers[(byte)(opcode & 0x00F0) >> 4];
+					vx = registers[(byte)((opcode & 0x0F00) >> 8)];
+					vy = registers[(byte)((opcode & 0x00F0) >> 4)];
 
 					if (vx != vy)
 						programCounter += 2;
@@ -303,8 +332,8 @@ namespace Chip_8_Emulator.Source
 
 					break;
 				case 0xD000: // (DXYN) Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and a height of N pixels. Each row of 8 pixels is read as bit-coded starting from memory location I; I value doesn’t change after the execution of this instruction. As described above, VF is set to 1 if any screen pixels are flipped from set to unset when the sprite is drawn, and to 0 if that doesn’t happen 
-					vx = registers[(byte)(opcode & 0x0F00) >> 8];
-					vy = registers[(byte)(opcode & 0x00F0) >> 4];
+					vx = registers[(byte)((opcode & 0x0F00) >> 8)];
+					vy = registers[(byte)((opcode & 0x00F0) >> 4)];
 					n = (byte)(opcode & 0x000F);
 
 					registers[0xF] = 0;
@@ -318,13 +347,16 @@ namespace Chip_8_Emulator.Source
 							if (vx + (vy + i) * 64 + j > 64 * 32)
 								continue;
 
-							bool current = gfx[vx + (vy + i) * 64 + j] != 0;
-							bool pixel = (data & (0x80 >> j)) != 0;
+							try
+							{
+								bool current = gfx[vx + (vy + i) * 64 + j] != 0;
+								bool pixel = (data & (0x80 >> j)) != 0;
 
-							gfx[vx + (vy + i) * 64 + j] = (byte)((current ^ pixel) ? 0xFF : 0x00);
+								gfx[vx + (vy + i) * 64 + j] = (byte)((current ^ pixel) ? 0xFF : 0x00);
 
-							if (current == pixel)
-								registers[0xF] = 1;
+								if (current == pixel)
+									registers[0xF] = 1;
+							} catch (Exception ex) { }
 						}
 					}
 
@@ -333,11 +365,17 @@ namespace Chip_8_Emulator.Source
 					switch (opcode & 0x00FF)
 					{
 						case 0x009E: // (EX9E) Skips the next instruction if the key stored in VX is pressed. (Usually the next instruction is a jump to skip a code block) 
-							Console.WriteLine("Not implemented: " + opcode.ToString("X4"));
+							vx = registers[(byte)((opcode & 0x0F00) >> 8)];
+
+							if (window.IsKeyDown(keyLookup[vx]))
+								programCounter += 2;
 
 							break;
 						case 0x00A1: // (EXA1) Skips the next instruction if the key stored in VX isn't pressed. (Usually the next instruction is a jump to skip a code block) 
-							Console.WriteLine("Not implemented: " + opcode.ToString("X4"));
+							vx = registers[(byte)((opcode & 0x0F00) >> 8)];
+
+							if (!window.IsKeyDown(keyLookup[vx]))
+								programCounter += 2;
 
 							break;
 						default:
@@ -349,19 +387,35 @@ namespace Chip_8_Emulator.Source
 					switch (opcode & 0x00FF)
 					{
 						case 0x0007: // (FX07) Sets VX to the value of the delay timer. 
-							Console.WriteLine("Not implemented: " + opcode.ToString("X4"));
+							registers[(byte)((opcode & 0x0F00) >> 8)] = (byte)delayTimer;
 
 							break;
 						case 0x000A: // (FX0A) A key press is awaited, and then stored in VX. (Blocking Operation. All instruction halted until next key event) 
-							Console.WriteLine("Not implemented: " + opcode.ToString("X4"));
+							bool anyFound = false;
+							foreach (KeyValuePair<byte, Key> pair in keyLookup)
+							{
+								if (window.IsKeyDown(pair.Value))
+								{
+									registers[(byte)((opcode & 0x0F00) >> 8)] = pair.Key;
+									anyFound = true;
+									break;
+								}
+							}
+
+							if (!anyFound)
+								incrementPC = false;
 
 							break;
 						case 0x0015: // (FX15) Sets the delay timer to VX.
-							Console.WriteLine("Not implemented: " + opcode.ToString("X4"));
+							vx = registers[(byte)((opcode & 0x0F00) >> 8)];
+
+							delayTimer = vx;
 
 							break;
 						case 0x0018: // (FX18) Sets the sound timer to VX. 
-							Console.WriteLine("Not implemented: " + opcode.ToString("X4"));
+							vx = registers[(byte)((opcode & 0x0F00) >> 8)];
+
+							soundTimer = vx;
 
 							break;
 						case 0x001E: // (FX1E) Adds VX to I. VF is set to 1 when there is a range overflow (I+VX>0xFFF), and to 0 when there isn't.
@@ -383,12 +437,11 @@ namespace Chip_8_Emulator.Source
 
 							break;
 						case 0x0033: // (FX33) Stores the binary-coded decimal representation of VX, with the most significant of three digits at the address in I, the middle digit at I plus 1, and the least significant digit at I plus 2. (In other words, take the decimal representation of VX, place the hundreds digit in memory at location in I, the tens digit at location I+1, and the ones digit at location I+2.) 
-							vx = registers[opcode & 0x0F00 >> 8];
+							vx = registers[(opcode & 0x0F00) >> 8];
 
 							memory[indexRegister + 0] = (byte)(vx / 100);
 							memory[indexRegister + 1] = (byte)((vx / 10) % 10);
-							memory[indexRegister + 2] = (byte)((vx % 100) % 100);
-
+							memory[indexRegister + 2] = (byte)((vx % 100) % 10);
 
 							break;
 						case 0x0055: // (FX55) Stores V0 to VX (including VX) in memory starting at address I. The offset from I is increased by 1 for each value written, but I itself is left unmodified.
@@ -463,6 +516,20 @@ namespace Chip_8_Emulator.Source
 					dump += "\n";
 				else
 					dump += " ";
+			}
+
+			Console.WriteLine(dump);
+		}
+
+		public void DumpRegisters()
+		{
+			string dump = "";
+
+			for (int i = 0; i < 16; i++)
+			{
+				dump += i.ToString("X1") + "\t";
+				dump += registers[i].ToString("X4") + "\t";
+				dump += registers[i].ToString() + "\n";
 			}
 
 			Console.WriteLine(dump);
